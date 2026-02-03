@@ -62,7 +62,7 @@ A conversational agent built by subtraction. When the orchestrator routes a user
 
 - **The breath.** A fixed 3-second pause before anything happens. Every time. Regardless.
 - **The coin.** 70% silence, 30% speech. Random, not strategic.
-- **The whisper.** Claude with no history, 15-token ceiling, and a two-word system prompt: *"Do not help."*
+- **The whisper.** Claude with no history, 5-token ceiling, and a system prompt built from prohibitions. *Do not help. Do not introduce yourself. Do not ask questions.*
 
 The implementation is in [`space/`](./space/).
 
