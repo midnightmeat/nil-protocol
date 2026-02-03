@@ -10,7 +10,7 @@ nil is a protocol-level primitive that provides a mode of agent interaction with
 
 Agent architectures have robust patterns for failure (retry, fallback, graceful degradation) but no pattern for the situation where the agent *can* keep completing its task and *shouldn't*.
 
-When a user has been in a decision loop for forty minutes and asks for a fourth analysis, the agent complies - because it was asked, because it has a task, because the optimisation loop has no concept of "enough." The agent's helpfulness has become the obstruction. And it has no way to know that.
+When a user has been in a decision loop for forty minutes and asks for a fourth analysis, the agent complies — because it was asked, because it has a task, because the optimisation loop has no concept of "enough." The agent's helpfulness has become the obstruction. And it has no way to know that.
 
 nil calls this **optimisation saturation**: the point at which continued assistance actively prevents the outcome being optimised for.
 
@@ -34,7 +34,7 @@ The pause happened. The system has no record of what occurred in it.
 
 ### Minimal context on invocation
 
-The calling agent passes almost nothing to nil. Not a conversation summary. Not a user model. At most, a single line of context - `"user has been in a decision loop"` -and even that is optional.
+The calling agent passes almost nothing to nil. Not a conversation summary. Not a user model. At most, a single line of context — `"user has been in a decision loop"` — and even that is optional.
 
 The less context passed, the more nil functions as designed.
 
@@ -45,6 +45,26 @@ nil does not optimise for calm, clarity, resolution, or any other outcome. It is
 ### Zero data generation
 
 nil produces no logs, no analytics, no behavioural data, no training signal. It is structurally incapable of data capture. This is architectural, not policy-based.
+
+---
+
+## Two Layers
+
+nil has two components. They serve different purposes.
+
+### nil (the signal)
+
+An MCP server exposing a single tool. A calling agent invokes it, receives `"complete"`, and that's it. The signal tells the orchestrator: stop helping. The implementation is in [`server/`](./server/).
+
+### nil-space (the space)
+
+A conversational agent built by subtraction. When the orchestrator routes a user to nil-space, they enter an interaction with no objective. Built from three components:
+
+- **The breath.** A fixed 3-second pause before anything happens. Every time. Regardless.
+- **The coin.** 70% silence, 30% speech. Random, not strategic.
+- **The whisper.** Claude with no history, 15-token ceiling, and a two-word system prompt: *"Do not help."*
+
+The implementation is in [`space/`](./space/).
 
 ---
 
@@ -76,6 +96,8 @@ Pattern-based signals the calling agent can check cheaply. These do not require 
 
 These are behavioural signals, not emotional assessments. Cheap to compute. No surveillance layer required.
 
+The [`nil-triggers`](./packages/nil-triggers/) library provides composable detection functions for Tier 2 integration.
+
 ### Tier 3: Agent self-recognition
 
 The calling agent recognises that its own continued helpfulness has become counterproductive. Requires architectures to support a concept of diminishing returns on their own output.
@@ -86,35 +108,58 @@ nil's existence as a destination incentivises building this capacity.
 
 ## Integration
 
-nil is implemented as an MCP server.
-
-### Tool Registration
+### MCP Server (nil signal)
 
 ```json
 {
-  "name": "nil",
-  "description": "Non-instrumental pause. No objective function. Call when continued optimisation is unlikely to help. Stateless. Nothing returned to calling agent."
+  "mcpServers": {
+    "nil": {
+      "command": "node",
+      "args": ["/path/to/nil-protocol/server/index.js"]
+    }
+  }
 }
 ```
 
-### Invocation
+### nil-space (module)
 
-```json
-{
-  "tool": "nil",
-  "context": "decision loop"  // optional, single line max
+```javascript
+import { nil } from './space/nil-space.js';
+
+const response = await nil("I can't decide.");
+// response is either a short string or null
+```
+
+### Heuristic Triggers
+
+```javascript
+import { check } from 'nil-triggers';
+
+const { triggered, signals } = check(messages);
+if (triggered) {
+  // route to nil or nil-space
 }
 ```
 
-### Response
+---
 
-```json
-{
-  "status": "complete"
-}
+## Project Structure
+
 ```
-
-No payload. No summary. No metadata. The calling agent receives confirmation that the interaction ended and resumes its prior task.
+nil-protocol/
+├── spec/              # Protocol specification
+│   └── SPEC.md
+├── server/            # MCP server — the signal
+│   └── ...
+├── space/             # nil-space — the conversational layer
+│   └── ...
+├── packages/
+│   └── nil-triggers/  # Heuristic trigger library
+│       └── ...
+├── examples/          # Integration examples
+│   └── ...
+└── README.md
+```
 
 ---
 
@@ -128,45 +173,6 @@ No payload. No summary. No metadata. The calling agent receives confirmation tha
 
 ---
 
-## Heuristic Trigger Library
-
-The `nil-triggers` package provides composable detection functions for Tier 2 integration.
-
-```
-npm install nil-triggers
-```
-
-```javascript
-import { detectLoop, detectSaturation, detectVelocityCollapse } from 'nil-triggers';
-
-// Returns boolean
-const shouldCallNil = detectLoop(conversationHistory)
-  || detectSaturation(conversationHistory, taskContext)
-  || detectVelocityCollapse(messageTimestamps);
-```
-
-Documentation: [nil-triggers](./packages/nil-triggers/)
-
----
-
-## Project Structure
-
-```
-nil-protocol/
-├── spec/              # Protocol specification
-│   └── SPEC.md
-├── server/            # Reference MCP server implementation
-│   └── ...
-├── packages/
-│   └── nil-triggers/  # Heuristic trigger library
-│       └── ...
-├── examples/          # Integration examples
-│   └── ...
-└── README.md
-```
-
----
-
 ## FAQ
 
 **Isn't this just... doing nothing?**
@@ -175,7 +181,7 @@ Yes. That's the point. Agent architectures currently have no way to do nothing. 
 
 **Why can't the agent just stop responding?**
 
-Stopping is not the same as nil. An agent that stops is an agent that has failed or timed out. nil is an intentional, designed mode -not an absence of function but a function whose purpose is absence.
+Stopping is not the same as nil. An agent that stops is an agent that has failed or timed out. nil is an intentional, designed mode — not an absence of function but a function whose purpose is absence.
 
 **Why external? Why not build this into every agent?**
 
